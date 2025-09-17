@@ -6,12 +6,14 @@ from schedule import cargar_programa_desde_csv
 class Controlador:
     def __init__(self):
         self.programa_diario = self._cargar_programa()
-
+        
     def _cargar_programa(self):
         programa_list = cargar_programa_desde_csv()
         programa = {}
-        for dia, sensor, valor in programa_list:
-            programa[(dia, sensor)] = valor
+        for item in programa_list:
+            if len(item) == 3:
+                dia, sensor, valor = item
+                programa[(int(dia), sensor)] = float(valor)
         return programa
 
     def get_valor_objetivo(self, nombre_sensor):
