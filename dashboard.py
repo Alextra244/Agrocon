@@ -22,6 +22,9 @@ class Dashboard(tk.Tk):
         self.config_file = "dashboard_config.json"
         self.app_config = self.cargar_configuracion()
         
+        # Lista para rastrear parámetros activos - DEBE IR ANTES DE CARGAR PARÁMETROS
+        self.parametros_activos = {}
+        
         # Configurar icono (si está disponible)
         try:
             self.iconbitmap("icon.ico")  # Añade un icono a tu aplicación
@@ -48,7 +51,7 @@ class Dashboard(tk.Tk):
         # Barra de estado inferior
         self.crear_barra_estado()
         
-        # Cargar parámetros guardados
+        # Cargar parámetros guardados - AHORA SÍ, DESPUÉS DE INICIALIZAR parametros_activos
         self.cargar_parametros_guardados()
         
         # Bind para redimensionamiento
@@ -139,14 +142,32 @@ class Dashboard(tk.Tk):
                             style="Subtitle.TLabel")
         lbl_tema.pack(side="right", padx=10)
 
-    def agregar_parametro(self, nombre=None):
+    def agregar_parametro(self, nombre=None, config=None):
         if not nombre:
             nombre = simpledialog.askstring("Nuevo parámetro", "Nombre del parámetro:")
             if not nombre:
                 return
         
-        # Crear el frame del parámetro
-        bloque = ParametroFrame(self.scrollable_frame, nombre)
+        # Verificar si el parámetro ya existe
+        if nombre in self.parametros_activos:
+            messagebox.showwarning("Advertencia", f"Ya existe un parámetro con el nombre '{nombre}'")
+            return
+        
+        # Crear el frame del parámetro con callback de cierre
+        bloque = ParametroFrame(self.scrollable_frame, nombre, on_close=self.parametro_cerrado)
+        
+        # Configurar valores si se proporciona configuración
+        if config:
+            bloque.sensor_var.set(config.get("sensor", "DHT22"))
+            bloque.min_entry.delete(0, tk.END)
+            bloque.min_entry.insert(0, config.get("min", "10"))
+            bloque.max_entry.delete(0, tk.END)
+            bloque.max_entry.insert(0, config.get("max", "30"))
+            bloque.int_entry.delete(0, tk.END)
+            bloque.int_entry.insert(0, config.get("intervalo", "5"))
+        
+        # Registrar parámetro activo
+        self.parametros_activos[nombre] = bloque
         
         # Determinar la posición basada en la vista actual
         if self.vista_var.get() == "tarjetas":
@@ -158,6 +179,12 @@ class Dashboard(tk.Tk):
         
         # Guardar la configuración
         self.guardar_configuracion()
+
+    def parametro_cerrado(self, nombre_parametro):
+        """Callback llamado cuando se cierra un parámetro"""
+        if nombre_parametro in self.parametros_activos:
+            del self.parametros_activos[nombre_parametro]
+            self.guardar_configuracion()
 
     def cambiar_vista(self, event=None):
         # Reorganizar los paneles según la vista seleccionada
@@ -212,14 +239,14 @@ class Dashboard(tk.Tk):
 
     def guardar_configuracion(self):
         parametros = []
-        for child in self.scrollable_frame.winfo_children():
-            if isinstance(child, ParametroFrame):
+        for nombre, parametro_frame in self.parametros_activos.items():
+            if hasattr(parametro_frame, 'winfo_exists') and parametro_frame.winfo_exists():  # Verificar que el frame aún existe
                 parametros.append({
-                    "nombre": child.nombre,
-                    "sensor": child.sensor_var.get(),
-                    "min": child.min_entry.get(),
-                    "max": child.max_entry.get(),
-                    "intervalo": child.int_entry.get()
+                    "nombre": nombre,
+                    "sensor": parametro_frame.sensor_var.get(),
+                    "min": parametro_frame.min_entry.get(),
+                    "max": parametro_frame.max_entry.get(),
+                    "intervalo": parametro_frame.int_entry.get()
                 })
         
         config = {
@@ -233,8 +260,7 @@ class Dashboard(tk.Tk):
 
     def cargar_parametros_guardados(self):
         for param in self.app_config.get("parametros", []):
-            self.agregar_parametro(param["nombre"])
-            # Aquí deberías configurar cada parámetro con sus valores guardados
+            self.agregar_parametro(param["nombre"], param)
 
     def mostrar_acerca_de(self):
         messagebox.showinfo("Acerca de", 
