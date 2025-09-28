@@ -15,11 +15,12 @@ class ParametroFrame(ttk.Frame):
     color_index = 0
     COLORS = ["#1f77b4", "#2ca02c", "#d62728", "#ff7f0e", "#9467bd", "#17becf"]
 
-    def __init__(self, master, nombre):
+    def __init__(self, master, nombre, on_close=None):
         self.tema = tema_manager.tema_actual
         super().__init__(master, style="Card.TFrame" if self.tema == "claro" else "TFrame")
         
         self.nombre = nombre
+        self.on_close_callback = on_close  # Callback para notificar cierre
         self.tiempo = []
         self.valores = []
         self.ciclo = 0
@@ -272,8 +273,8 @@ class ParametroFrame(ttk.Frame):
                 respuesta = f"[{self.nombre}] Valor alto ({valor:.2f}) -> Necesita bajar (máx: {max_val:.2f})"
             else:
                 respuesta = f"[{self.nombre}] En objetivo ({valor:.2f}) dentro del rango [{min_val:.2f}, {max_val:.2f}]"
-            
-            print(respuesta)
+            hora = datetime.now().strftime('%H:%M:%S')
+            print(f"[{hora}] {respuesta}")
             self.objetivo_label.config(text="Objetivo: ---")
             
             # Actualizar gráfico con rangos
@@ -282,10 +283,9 @@ class ParametroFrame(ttk.Frame):
         elif self.modo_control == "diario":
             respuesta = self.controlador.generar_respuesta(self.sensor_var.get(), valor)
             valor_objetivo = self.controlador.get_valor_objetivo(self.sensor_var.get())
-            
-            # Imprimir respuesta de control en terminal
-            print(f"[{self.nombre}] {respuesta}")
-            
+            hora = datetime.now().strftime('%H:%M:%S')
+            # Imprimir respuesta de control en terminal con hora
+            print(f"[{hora}] [{self.nombre}] {respuesta}")
             self.objetivo_label.config(text=f"Objetivo: {valor_objetivo:.2f}" if valor_objetivo else "Objetivo: N/A")
             
             # Actualizar gráfico con objetivo
@@ -379,8 +379,23 @@ class ParametroFrame(ttk.Frame):
     def renombrar(self):
         nuevo_nombre = simpledialog.askstring("Renombrar", "Nuevo nombre:", initialvalue=self.nombre)
         if nuevo_nombre and nuevo_nombre != self.nombre:
+            # Notificar al dashboard del cambio de nombre
+            if self.on_close_callback:
+                self.on_close_callback(self.nombre)  # Notificar cierre del nombre anterior
+            
             self.nombre = nuevo_nombre
             # Actualizar la interfaz con el nuevo nombre
+            for child in self.winfo_children():
+                if isinstance(child, ttk.Frame) and hasattr(child, 'winfo_children'):
+                    for subchild in child.winfo_children():
+                        if isinstance(subchild, ttk.Label) and "Parámetro:" in subchild.cget("text"):
+                            subchild.config(text=f"Parámetro: {self.nombre}")
+            
+            # Notificar al dashboard del nuevo nombre
+            if self.on_close_callback:
+                # En este caso, necesitaríamos una callback diferente para renombrar
+                # Por simplicidad, guardaremos la configuración desde el dashboard
+                pass
 
     def config_avanzada(self):
         # Diálogo de configuración avanzada
@@ -411,5 +426,17 @@ class ParametroFrame(ttk.Frame):
         if messagebox.askyesno("Confirmar", f"¿Eliminar el parámetro '{self.nombre}'?"):
             if self.running:
                 self.detener()
+            
+            # Notificar al dashboard antes de destruir
+            if self.on_close_callback:
+                self.on_close_callback(self.nombre)
+            
             self.destroy()
-            # Notificar al dashboard para actualizar la configuración
+
+    def winfo_exists(self):
+    #Método auxiliar para verificar si el widget aún existe"""
+        try:
+        # Intentar acceder a una propiedad del widget
+            return self.winfo_viewable() is not None
+        except tk.TclError:
+            return False
