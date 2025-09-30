@@ -1,0 +1,25 @@
+{
+  "tema": "claro",
+  "vista": "tarjetas",
+  "ambientes": [
+    {
+      "nombre": "Invernadero Principal",
+      "parametros": [
+        {
+          "nombre": "Temperatura",
+          "sensor": "DHT22",
+          "min": "18",
+          "max": "28",
+          "intervalo": "5"
+        },
+        {
+          "nombre": "Humedad",
+          "sensor": "DHT22", 
+          "min": "40",
+          "max": "80",
+          "intervalo": "5"
+        }
+      ]
+    }
+  ]
+}
