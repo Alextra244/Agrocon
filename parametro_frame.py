@@ -1,6 +1,6 @@
 # parametro_frame.py
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, simpledialog
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.widgets import Cursor
@@ -378,24 +378,28 @@ class ParametroFrame(ttk.Frame):
 
     def renombrar(self):
         nuevo_nombre = simpledialog.askstring("Renombrar", "Nuevo nombre:", initialvalue=self.nombre)
-        if nuevo_nombre and nuevo_nombre != self.nombre:
-            # Notificar al dashboard del cambio de nombre
-            if self.on_close_callback:
-                self.on_close_callback(self.nombre)  # Notificar cierre del nombre anterior
-            
-            self.nombre = nuevo_nombre
-            # Actualizar la interfaz con el nuevo nombre
-            for child in self.winfo_children():
-                if isinstance(child, ttk.Frame) and hasattr(child, 'winfo_children'):
-                    for subchild in child.winfo_children():
-                        if isinstance(subchild, ttk.Label) and "Parámetro:" in subchild.cget("text"):
-                            subchild.config(text=f"Parámetro: {self.nombre}")
-            
-            # Notificar al dashboard del nuevo nombre
-            if self.on_close_callback:
-                # En este caso, necesitaríamos una callback diferente para renombrar
-                # Por simplicidad, guardaremos la configuración desde el dashboard
-                pass
+        if not nuevo_nombre or nuevo_nombre == self.nombre:
+            return
+        # Actualizar la clave en el diccionario del ambiente
+        ambiente = self.master.master  # self.master = parametros_frame, self.master.master = AmbienteFrame
+        if nuevo_nombre in ambiente.parametros_activos:
+            messagebox.showwarning("Advertencia", f"Ya existe un parámetro '{nuevo_nombre}' en este ambiente")
+            return
+        # Remover la clave antigua y agregar la nueva
+        del ambiente.parametros_activos[self.nombre]
+        ambiente.parametros_activos[nuevo_nombre] = self
+        self.nombre = nuevo_nombre
+        # Actualizar la interfaz con el nuevo nombre
+        for child in self.winfo_children():
+            if isinstance(child, ttk.Frame) and hasattr(child, 'winfo_children'):
+                for subchild in child.winfo_children():
+                    if isinstance(subchild, ttk.Label) and "Parámetro:" in subchild.cget("text"):
+                        subchild.config(text=f"Parámetro: {self.nombre}")
+        # Reorganizar y guardar configuración
+        if hasattr(ambiente, 'reorganizar_parametros'):
+            ambiente.reorganizar_parametros()
+        if ambiente.on_parametro_change:
+            ambiente.on_parametro_change()
 
     def config_avanzada(self):
         # Diálogo de configuración avanzada

@@ -5,13 +5,53 @@ from parametro_frame import ParametroFrame
 from tema import tema_manager
 import json
 import os
+# Añadir estas importaciones al inicio
+from ambiente_frame import AmbienteFrame
+import json
+import os
 
 class Dashboard(tk.Tk):
+    def on_resize(self, event):
+        # Aquí puedes agregar lógica para ajustar el layout si es necesario
+        pass
+    def crear_barra_estado(self):
+        statusbar = ttk.Frame(self)
+        statusbar.pack(side="bottom", fill="x")
+        lbl_status = ttk.Label(statusbar, text="Listo", style="Subtitle.TLabel")
+        lbl_status.pack(side="left", padx=10)
+        lbl_tema = ttk.Label(statusbar, text=f"Tema: {tema_manager.tema_actual.capitalize()}", style="Subtitle.TLabel")
+        lbl_tema.pack(side="right", padx=10)
+    def organizar_paneles(self):
+        messagebox.showinfo("Organizar Paneles", "Los ambientes se han organizado automáticamente.")
+    def mostrar_acerca_de(self):
+        messagebox.showinfo("Acerca de", 
+            "Dashboard de Control de Ambientes\n\n"
+            "Versión multiambiente\n"
+            "Desarrollado para sistema de monitoreo y control ambiental")
+    def crear_menu(self):
+        menubar = tk.Menu(self)
+        self.configure(menu=menubar)
+        # Menú Archivo
+        menu_archivo = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Archivo", menu=menu_archivo)
+        menu_archivo.add_command(label="Nuevo ambiente", command=self.agregar_ambiente)
+        menu_archivo.add_command(label="Guardar configuración", command=self.guardar_configuracion)
+        menu_archivo.add_separator()
+        menu_archivo.add_command(label="Salir", command=self.quit)
+        # Menú Ver
+        menu_ver = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Ver", menu=menu_ver)
+        menu_ver.add_command(label="Tema Claro", command=lambda: self.cambiar_tema("claro"))
+        menu_ver.add_command(label="Tema Oscuro", command=lambda: self.cambiar_tema("oscuro"))
+        # Menú Ayuda
+        menu_ayuda = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Ayuda", menu=menu_ayuda)
+        menu_ayuda.add_command(label="Acerca de", command=self.mostrar_acerca_de)
     def __init__(self):
         super().__init__()
         
         # Configuración inicial
-        self.title("Dashboard de Control de Parámetros")
+        self.title("Dashboard de Control de Ambientes")
         self.geometry("1200x700")
         self.minsize(1000, 600)
         
@@ -22,12 +62,12 @@ class Dashboard(tk.Tk):
         self.config_file = "dashboard_config.json"
         self.app_config = self.cargar_configuracion()
         
-        # Lista para rastrear parámetros activos - DEBE IR ANTES DE CARGAR PARÁMETROS
-        self.parametros_activos = {}
+        # Lista para rastrear ambientes activos
+        self.ambientes_activos = {}
         
-        # Configurar icono (si está disponible)
+        # Configurar icono
         try:
-            self.iconbitmap("icon.ico")  # Añade un icono a tu aplicación
+            self.iconbitmap("icon.ico")
         except:
             pass
         
@@ -38,236 +78,146 @@ class Dashboard(tk.Tk):
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Pestaña principal
-        self.tab_principal = ttk.Frame(self.notebook, style="TFrame")
-        self.notebook.add(self.tab_principal, text="Principal")
+        # Pestaña de ambientes
+        self.tab_ambientes = ttk.Frame(self.notebook, style="TFrame")
+        self.notebook.add(self.tab_ambientes, text="Ambientes")
         
         # Barra de herramientas superior
         self.crear_barra_herramientas()
         
-        # Área de contenido con scroll
-        self.crear_area_contenido()
+        # Área de contenido con scroll para ambientes
+        self.crear_area_contenido_ambientes()
         
         # Barra de estado inferior
         self.crear_barra_estado()
         
-        # Cargar parámetros guardados - AHORA SÍ, DESPUÉS DE INICIALIZAR parametros_activos
-        self.cargar_parametros_guardados()
+        # Cargar ambientes guardados
+        self.cargar_ambientes_guardados()
         
-        # Bind para redimensionamiento
         self.bind("<Configure>", self.on_resize)
 
-    def crear_menu(self):
-        menubar = tk.Menu(self)
-        self.configure(menu=menubar)
-        
-        # Menú Archivo
-        menu_archivo = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Archivo", menu=menu_archivo)
-        menu_archivo.add_command(label="Nuevo parámetro", command=self.agregar_parametro)
-        menu_archivo.add_command(label="Guardar configuración", command=self.guardar_configuracion)
-        menu_archivo.add_separator()
-        menu_archivo.add_command(label="Salir", command=self.quit)
-        
-        # Menú Ver
-        menu_ver = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Ver", menu=menu_ver)
-        menu_ver.add_command(label="Tema Claro", command=lambda: self.cambiar_tema("claro"))
-        menu_ver.add_command(label="Tema Oscuro", command=lambda: self.cambiar_tema("oscuro"))
-        
-        # Menú Ayuda
-        menu_ayuda = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Ayuda", menu=menu_ayuda)
-        menu_ayuda.add_command(label="Acerca de", command=self.mostrar_acerca_de)
-
     def crear_barra_herramientas(self):
-        toolbar = ttk.Frame(self.tab_principal, height=40)
+        toolbar = ttk.Frame(self.tab_ambientes, height=40)
         toolbar.pack(fill="x", padx=5, pady=5)
         
-        btn_agregar = ttk.Button(toolbar, text="+ Agregar Parámetro", 
-                                command=self.agregar_parametro, style="Primary.TButton")
-        btn_agregar.pack(side="left", padx=5)
+        btn_agregar_ambiente = ttk.Button(toolbar, text="+ Agregar Ambiente", 
+                                        command=self.agregar_ambiente, style="Primary.TButton")
+        btn_agregar_ambiente.pack(side="left", padx=5)
         
         btn_organizar = ttk.Button(toolbar, text="Organizar Paneles", 
                                   command=self.organizar_paneles, style="Secondary.TButton")
         btn_organizar.pack(side="left", padx=5)
-        
-        # Selector de vista
-        self.vista_var = tk.StringVar(value="tarjetas")
-        vista_combo = ttk.Combobox(toolbar, textvariable=self.vista_var, 
-                                  values=["tarjetas", "lista", "compacto"], 
-                                  state="readonly", width=10)
-        vista_combo.pack(side="right", padx=5)
-        vista_combo.bind("<<ComboboxSelected>>", self.cambiar_vista)
 
-    def crear_area_contenido(self):
-        # Marco para el área de contenido
-        content_frame = ttk.Frame(self.tab_principal)
+    def crear_area_contenido_ambientes(self):
+        # Marco para el área de contenido de ambientes
+        content_frame = ttk.Frame(self.tab_ambientes)
         content_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
-        # Canvas con scrollbar
-        self.canvas = tk.Canvas(content_frame, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(content_frame, orient="vertical", command=self.canvas.yview)
-        self.scrollable_frame = ttk.Frame(self.canvas)
+        # Canvas con scrollbar para ambientes
+        self.canvas_ambientes = tk.Canvas(content_frame, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(content_frame, orient="vertical", command=self.canvas_ambientes.yview)
+        self.scrollable_frame_ambientes = ttk.Frame(self.canvas_ambientes)
         
-        self.scrollable_frame.bind(
+        self.scrollable_frame_ambientes.bind(
             "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            lambda e: self.canvas_ambientes.configure(scrollregion=self.canvas_ambientes.bbox("all"))
         )
         
-        self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        self.canvas.configure(yscrollcommand=scrollbar.set)
+        self.canvas_window_ambientes = self.canvas_ambientes.create_window((0, 0), 
+                                                                         window=self.scrollable_frame_ambientes, 
+                                                                         anchor="nw")
+        self.canvas_ambientes.configure(yscrollcommand=scrollbar.set)
         
         # Empaquetado
-        self.canvas.pack(side="left", fill="both", expand=True)
+        self.canvas_ambientes.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         
         # Bind para redimensionar el contenido
-        self.canvas.bind("<Configure>", self.on_canvas_configure)
-        
-        # Configurar grid para paneles redimensionables
-        self.scrollable_frame.columnconfigure(0, weight=1)
-        self.scrollable_frame.columnconfigure(1, weight=1)
-        self.scrollable_frame.rowconfigure(0, weight=1)
-        self.scrollable_frame.rowconfigure(1, weight=1)
+        self.canvas_ambientes.bind("<Configure>", self.on_canvas_ambientes_configure)
 
-    def crear_barra_estado(self):
-        statusbar = ttk.Frame(self)
-        statusbar.pack(side="bottom", fill="x")
-        
-        lbl_status = ttk.Label(statusbar, text="Listo", style="Subtitle.TLabel")
-        lbl_status.pack(side="left", padx=10)
-        
-        lbl_tema = ttk.Label(statusbar, text=f"Tema: {tema_manager.tema_actual.capitalize()}", 
-                            style="Subtitle.TLabel")
-        lbl_tema.pack(side="right", padx=10)
-
-    def agregar_parametro(self, nombre=None, config=None):
+    def agregar_ambiente(self, nombre=None, config=None):
         if not nombre:
-            nombre = simpledialog.askstring("Nuevo parámetro", "Nombre del parámetro:")
+            nombre = simpledialog.askstring("Nuevo Ambiente", "Nombre del ambiente:")
             if not nombre:
                 return
         
-        # Verificar si el parámetro ya existe
-        if nombre in self.parametros_activos:
-            messagebox.showwarning("Advertencia", f"Ya existe un parámetro con el nombre '{nombre}'")
+        # Verificar si el ambiente ya existe
+        if nombre in self.ambientes_activos:
+            messagebox.showwarning("Advertencia", f"Ya existe un ambiente con el nombre '{nombre}'")
             return
         
-        # Crear el frame del parámetro con callback de cierre
-        bloque = ParametroFrame(self.scrollable_frame, nombre, on_close=self.parametro_cerrado)
+        # Crear el frame del ambiente
+        ambiente_frame = AmbienteFrame(self.scrollable_frame_ambientes, nombre, 
+                                     on_close=self.ambiente_cerrado,
+                                     on_parametro_change=self.guardar_configuracion)
         
-        # Configurar valores si se proporciona configuración
-        if config:
-            bloque.sensor_var.set(config.get("sensor", "DHT22"))
-            bloque.min_entry.delete(0, tk.END)
-            bloque.min_entry.insert(0, config.get("min", "10"))
-            bloque.max_entry.delete(0, tk.END)
-            bloque.max_entry.insert(0, config.get("max", "30"))
-            bloque.int_entry.delete(0, tk.END)
-            bloque.int_entry.insert(0, config.get("intervalo", "5"))
+        # Configurar parámetros si se proporciona configuración
+        if config and "parametros" in config:
+            for param_config in config["parametros"]:
+                ambiente_frame.agregar_parametro_desde_config(param_config)
         
-        # Registrar parámetro activo
-        self.parametros_activos[nombre] = bloque
+        # Registrar ambiente activo
+        self.ambientes_activos[nombre] = ambiente_frame
         
-        # Determinar la posición basada en la vista actual
-        if self.vista_var.get() == "tarjetas":
-            row = len(self.scrollable_frame.winfo_children()) // 2
-            col = len(self.scrollable_frame.winfo_children()) % 2
-            bloque.grid(row=row, column=col, sticky="nsew", padx=10, pady=10)
-        else:
-            bloque.pack(fill="x", expand=False, padx=10, pady=5)
+        # Organizar en la vista
+        ambiente_frame.pack(fill="x", expand=False, padx=10, pady=10)
         
         # Guardar la configuración
         self.guardar_configuracion()
 
-    def parametro_cerrado(self, nombre_parametro):
-        """Callback llamado cuando se cierra un parámetro"""
-        if nombre_parametro in self.parametros_activos:
-            del self.parametros_activos[nombre_parametro]
+    def ambiente_cerrado(self, nombre_ambiente):
+        """Callback llamado cuando se cierra un ambiente"""
+        if nombre_ambiente in self.ambientes_activos:
+            del self.ambientes_activos[nombre_ambiente]
             self.guardar_configuracion()
-
-    def cambiar_vista(self, event=None):
-        # Reorganizar los paneles según la vista seleccionada
-        for i, child in enumerate(self.scrollable_frame.winfo_children()):
-            if self.vista_var.get() == "tarjetas":
-                child.pack_forget()
-                row = i // 2
-                col = i % 2
-                child.grid(row=row, column=col, sticky="nsew", padx=10, pady=10)
-            else:
-                child.grid_forget()
-                child.pack(fill="x", expand=False, padx=10, pady=5)
-
-    def organizar_paneles(self):
-        # Implementar lógica para organizar automáticamente los paneles
-        messagebox.showinfo("Organizar Paneles", "Los paneles se han organizado automáticamente.")
-
-    def cambiar_tema(self, tema):
-        tema_manager.aplicar_tema(tema)
-        self.tema = tema_manager.tema_actual
-        # Actualizar la interfaz con el nuevo tema
-        self.actualizar_tema()
-
-    def actualizar_tema(self):
-        # Actualizar colores y estilos de todos los componentes
-        for child in self.winfo_children():
-            if isinstance(child, ttk.Frame):
-                self.actualizar_tema_recursivo(child)
-
-    def actualizar_tema_recursivo(self, widget):
-        for child in widget.winfo_children():
-            if isinstance(child, (ttk.Frame, ttk.Label, ttk.Button, ttk.Entry, ttk.Combobox)):
-                # Actualizar estilos según el tema actual
-                pass
-            self.actualizar_tema_recursivo(child)
-
-    def on_resize(self, event):
-        # Ajustar diseño en respuesta al redimensionamiento
-        pass
-
-    def on_canvas_configure(self, event):
-        self.canvas.itemconfig(self.canvas_window, width=event.width)
 
     def cargar_configuracion(self):
         if os.path.exists(self.config_file):
             try:
                 with open(self.config_file, 'r') as f:
-                    return json.load(f)
-            except:
-                return {"parametros": [], "tema": "claro", "vista": "tarjetas"}
-        return {"parametros": [], "tema": "claro", "vista": "tarjetas"}
+                    config = json.load(f)
+                    # Mantener compatibilidad con versiones anteriores
+                    if "ambientes" not in config and "parametros" in config:
+                        # Convertir configuración antigua a nueva estructura
+                        config = {
+                            "tema": config.get("tema", "claro"),
+                            "vista": config.get("vista", "tarjetas"),
+                            "ambientes": [{
+                                "nombre": "Ambiente Principal",
+                                "parametros": config.get("parametros", [])
+                            }]
+                        }
+                    return config
+            except Exception as e:
+                print(f"Error cargando configuración: {e}")
+        return {"tema": "claro", "vista": "tarjetas", "ambientes": []}
 
     def guardar_configuracion(self):
-        parametros = []
-        for nombre, parametro_frame in self.parametros_activos.items():
-            if hasattr(parametro_frame, 'winfo_exists') and parametro_frame.winfo_exists():  # Verificar que el frame aún existe
-                parametros.append({
+        ambientes_config = []
+        
+        for nombre, ambiente_frame in self.ambientes_activos.items():
+            if hasattr(ambiente_frame, 'winfo_exists') and ambiente_frame.winfo_exists():
+                parametros = ambiente_frame.obtener_configuracion_parametros()
+                ambientes_config.append({
                     "nombre": nombre,
-                    "sensor": parametro_frame.sensor_var.get(),
-                    "min": parametro_frame.min_entry.get(),
-                    "max": parametro_frame.max_entry.get(),
-                    "intervalo": parametro_frame.int_entry.get()
+                    "parametros": parametros
                 })
         
         config = {
-            "parametros": parametros,
             "tema": tema_manager.tema_actual,
-            "vista": self.vista_var.get()
+            "vista": self.vista_var.get() if hasattr(self, 'vista_var') else "tarjetas",
+            "ambientes": ambientes_config
         }
         
-        with open(self.config_file, 'w') as f:
-            json.dump(config, f, indent=2)
+        try:
+            with open(self.config_file, 'w') as f:
+                json.dump(config, f, indent=2)
+        except Exception as e:
+            print(f"Error guardando configuración: {e}")
 
-    def cargar_parametros_guardados(self):
-        for param in self.app_config.get("parametros", []):
-            self.agregar_parametro(param["nombre"], param)
+    def cargar_ambientes_guardados(self):
+        for ambiente_config in self.app_config.get("ambientes", []):
+            self.agregar_ambiente(ambiente_config["nombre"], ambiente_config)
 
-    def mostrar_acerca_de(self):
-        messagebox.showinfo("Acerca de", 
-                           "Dashboard de Control de Parámetros\n\n"
-                           "Versión 2.0\n"
-                           "Desarrollado para sistema de monitoreo y control")
-
-if __name__ == "__main__":
-    app = Dashboard()
-    app.mainloop()
+    def on_canvas_ambientes_configure(self, event):
+        self.canvas_ambientes.itemconfig(self.canvas_window_ambientes, width=event.width)
